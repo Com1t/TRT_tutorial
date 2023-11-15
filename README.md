@@ -69,7 +69,12 @@ On PowerPC systems, you will need to manually install PyTorch using IBM's [Power
 1.  Run the sample to create a TensorRT inference engine and run inference:
     `python3 sample.py`
 
-2.  Verify that the sample ran successfully. If the sample runs successfully you should see a "Valid? True" in the end of the output.
+2.  If ran with `benchmark()`. To verify that the sample ran successfully. If the sample runs successfully you should see a test accuracy is the same as `model.py` but the time is more faster.
+     ```
+    Test set: Accuracy: 9880/10000 (99%). Time: 24.1136 ms
+    ```
+
+3.  If ran with `check_transform()`. To verify that the sample ran successfully. If the sample runs successfully you should see a "Valid? True" in the end of the output.
      ```
     Valid? True
     ```
