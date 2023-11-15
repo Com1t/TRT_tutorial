@@ -12,7 +12,7 @@ sys.path.insert(1, os.path.join(sys.path[0], ".."))
 
 class ModelData(object):
     INPUT_NAME = "data"
-    INPUT_SHAPE = (1, 1, 28, 28)
+    INPUT_SHAPE = (4, 1, 28, 28)
     OUTPUT_NAME = "prob"
     OUTPUT_SIZE = 10
     DTYPE = trt.float32
@@ -21,21 +21,22 @@ class ModelData(object):
 def populate_network(network, weights):
     # Configure the network layers based on the weights provided.
     input_tensor = network.add_input(name=ModelData.INPUT_NAME, dtype=ModelData.DTYPE, shape=ModelData.INPUT_SHAPE)
-    # # input
-    # hidden_states = network.add_input('hidden_states', trt.DataType.FLOAT, (batch_size, -1, hidden_size))
-    # attention_mask = network.add_input('attention_mask', trt.DataType.FLOAT, (batch_size, 1, -1, -1))
 
     # # dynamic shape optimization
     # profile = builder.create_optimization_profile();
     # profile.set_shape("hidden_states", (batch_size, 1, hidden_size), (batch_size, 1, hidden_size), (batch_size, 45, hidden_size))
-    # profile.set_shape("attention_mask", (batch_size, 1, 1, 1), (batch_size, 1, 1, 1), (batch_size, 1, 45, 45))
     # config.add_optimization_profile(profile)
 
     def add_matmul_as_fc(net, input, outputs, w, b):
-        assert len(input.shape) >= 3
-        m = 1 if len(input.shape) == 3 else input.shape[0]
+        # m = batch size
+        # k = product of each sample size
+        m = input.shape[0]
         k = int(np.prod(input.shape) / m)
+
         assert np.prod(input.shape) == m * k
+
+        # validating the weight size
+        # weight size should be the product of input sample(k) and output dim(n)
         n = int(w.size / k)
         assert w.size == n * k
         assert b.size == n
@@ -55,7 +56,7 @@ def populate_network(network, weights):
         bias_add = net.add_elementwise(mm.get_output(0), bias_const.get_output(0), trt.ElementWiseOperation.SUM)
 
         output_reshape = net.add_shuffle(bias_add.get_output(0))
-        output_reshape.reshape_dims = trt.Dims4(m, n, 1, 1)
+        output_reshape.reshape_dims = trt.Dims2(m, n)
         return output_reshape
 
     conv1_w = weights["conv1.weight"].numpy()
@@ -123,7 +124,7 @@ def trt_inference(engine, context, raw_data):
     _, stream = cudart.cudaStreamCreate()
 
     inputH0 = np.ascontiguousarray(data.reshape(-1))
-    outputH0 = np.empty(context.get_binding_shape(2), dtype=trt.nptype(engine.get_binding_dtype(2)))
+    outputH0 = np.empty(context.get_binding_shape(1), dtype=trt.nptype(engine.get_binding_dtype(1)))
 
     # initialize input and output data
     _, inputD0 = cudart.cudaMallocAsync(inputH0.nbytes, stream)
@@ -196,6 +197,7 @@ def main():
         mnist_model.learn()
         mnist_model.save()
 
+    mnist_model.network.to("cpu")
     weights = mnist_model.get_weights()
 
     # Do inference with TensorRT.
@@ -212,17 +214,23 @@ def main():
     # context.set_input_shape("hidden_states", (batch_size, seq_len, hidden_size))
     # context.set_binding_shape(0, (batch_size, seq_len, hidden_size))
 
-    # context.set_input_shape("attention_mask", (batch_size, 1, seq_len, seq_len))
-    # context.set_binding_shape(1, (batch_size, 1, seq_len, seq_len))
     # print("Set input shape completed")
 
-    raw_data = np.random(ModelData.shape)
+    np.random.seed(12345)
+    raw_data = np.random.rand(*ModelData.INPUT_SHAPE).astype(np.float32)
 
-    output = trt_inference(engine, context, raw_data)
+    trt_output = trt_inference(engine, context, raw_data)
 
-    pred = np.argmax(output)
+    trt_pred = np.argmax(trt_output)
+    print(trt_output, trt_pred)
 
-    print(pred)
+    import torch
+    tor_data = torch.from_numpy(raw_data)
+    tor_output = mnist_model.network(tor_data)
+    tor_pred = tor_output.data.max(1)[1]
+
+    print(tor_output, tor_pred)
+    print(f"Valid? {np.allclose(tor_output.detach().numpy(), trt_output, atol=1e-04)}")
 
 
 if __name__ == "__main__":
