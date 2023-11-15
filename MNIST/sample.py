@@ -88,7 +88,11 @@ def populate_network(network, weights):
     fc2 = add_matmul_as_fc(network, relu1.get_output(0), ModelData.OUTPUT_SIZE, fc2_w, fc2_b)
 
     fc2.get_output(0).name = ModelData.OUTPUT_NAME
-    network.mark_output(tensor=fc2.get_output(0))
+
+    softmax = network.add_softmax(fc2.get_output(0))
+    softmax.axes = 1 << 1  # run softmax along second dim(zero index)
+
+    network.mark_output(tensor=softmax.get_output(0))
 
 
 def build_engine(weights):
