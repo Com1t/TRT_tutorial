@@ -13,6 +13,7 @@ sys.path.insert(1, os.path.join(sys.path[0], ".."))
 class ModelData(object):
     INPUT_NAME = "data"
     INPUT_SHAPE = (4, 1, 28, 28)
+    DYNA_INPUT_SHAPE = (-1, 1, 28, 28)
     OUTPUT_NAME = "prob"
     OUTPUT_SIZE = 10
     DTYPE = trt.float32
@@ -20,7 +21,7 @@ class ModelData(object):
 
 def populate_network(network, weights):
     # Configure the network layers based on the weights provided.
-    input_tensor = network.add_input(name=ModelData.INPUT_NAME, dtype=ModelData.DTYPE, shape=ModelData.INPUT_SHAPE)
+    input_tensor = network.add_input(name=ModelData.INPUT_NAME, dtype=ModelData.DTYPE, shape=ModelData.DYNA_INPUT_SHAPE)
 
     def add_matmul_as_fc(net, input, outputs, w, b):
         # m = batch size
@@ -109,10 +110,13 @@ def build_engine(weights):
     # Populate the network using weights from the PyTorch model.
     populate_network(network, weights)
 
-    # # dynamic shape optimization
-    # profile = builder.create_optimization_profile();
-    # profile.set_shape("hidden_states", (batch_size, 1, hidden_size), (batch_size, 1, hidden_size), (batch_size, 45, hidden_size))
-    # config.add_optimization_profile(profile)
+    # dynamic shape optimization
+    profile = builder.create_optimization_profile()
+    profile.set_shape(ModelData.INPUT_NAME,
+                      (1, 1, 28, 28),
+                      (4, 1, 28, 28),
+                      (32, 1, 28, 28))
+    config.add_optimization_profile(profile)
 
     # # FP16
     # config.set_flag(trt.BuilderFlag.FP16)
@@ -211,13 +215,13 @@ def main():
     _, stream = cudart.cudaStreamCreate()
     context = engine.create_execution_context()
 
-    # # dynamic shape configure
-    # print("Set input shape", (batch_size, seq_len, hidden_size))
+    # dynamic shape configure
+    print("Set input shape", (4, 1, 28, 28))
 
-    # context.set_input_shape("hidden_states", (batch_size, seq_len, hidden_size))
-    # context.set_binding_shape(0, (batch_size, seq_len, hidden_size))
+    context.set_input_shape(ModelData.INPUT_NAME, (4, 1, 28, 28))
+    context.set_binding_shape(0, (4, 1, 28, 28))
 
-    # print("Set input shape completed")
+    print("Set input shape completed")
 
     np.random.seed(12345)
     raw_data = np.random.rand(*ModelData.INPUT_SHAPE).astype(np.float32)
