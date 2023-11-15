@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 # This sample uses an MNIST PyTorch model to create a TensorRT Inference Engine
 import model
@@ -8,7 +9,6 @@ import numpy as np
 import tensorrt as trt
 from cuda import cudart
 
-sys.path.insert(1, os.path.join(sys.path[0], ".."))
 
 class ModelData(object):
     INPUT_NAME = "data"
@@ -114,8 +114,8 @@ def build_engine(weights):
     profile = builder.create_optimization_profile()
     profile.set_shape(ModelData.INPUT_NAME,
                       (1, 1, 28, 28),
-                      (4, 1, 28, 28),
-                      (32, 1, 28, 28))
+                      (100, 1, 28, 28),
+                      (256, 1, 28, 28))
     config.add_optimization_profile(profile)
 
     # # FP16
@@ -176,34 +176,55 @@ def trt_inference(engine, context, raw_data):
 
     return outputH0
 
-# # Predict
-# def predict(self):
-#     self.network.eval()
-#     correct = 0
-#     torch_start = time.time_ns()
+# benchmark
+def benchmark(engine, context, mnist_model):
+    correct = 0
+    trt_total_time = 0
+    for data, target in mnist_model.test_loader:
+        data = data.numpy()
+        target = target.numpy()
 
-#     for data, target in self.test_loader:
-#         with torch.no_grad():
-#             data, target = data.to(self.device), target.to(self.device)
-#         output = self.network(data)
-#         pred = output.data.max(1)[1]
-#         correct += pred.eq(target.data).cpu().sum()
+        trt_start = time.time_ns()
 
-#     torch_complete = time.time_ns()
+        context.set_input_shape(ModelData.INPUT_NAME, data.shape)
+        context.set_binding_shape(0, data.shape)
 
-#     print(
-#         "\nTest set: Accuracy: {}/{} ({:.0f}%). Time: {:.4f} ms\n".format(
-#             correct, len(self.test_loader.dataset), 100.0 * correct / len(self.test_loader.dataset), (torch_complete - torch_start) / 10e6
-#         )
-#     )
+        trt_output = trt_inference(engine, context, data)
+        trt_total_time += time.time_ns() - trt_start
 
-# Loads a random test case from pytorch's DataLoader
-def load_random_test_case(model, pagelocked_buffer):
-    # Select an image at random to be the test case.
-    img, expected_output = model.get_random_testcase()
-    # Copy to the pagelocked input buffer
-    np.copyto(pagelocked_buffer, img)
-    return expected_output
+        pred = np.argmax(trt_output, axis=1)
+        correct += (pred == target).sum()
+
+    print(
+        "\nTest set: Accuracy: {}/{} ({:.0f}%). Time: {:.4f} ms\n".format(
+            correct, len(mnist_model.test_loader.dataset), 100.0 * correct / len(mnist_model.test_loader.dataset), trt_total_time / 10e6
+        )
+    )
+
+# An example funtion for transformation
+def check_transform(engine, context, mnist_model):
+    # dynamic shape configure
+    print("Set input shape", ModelData.INPUT_SHAPE)
+
+    context.set_input_shape(ModelData.INPUT_NAME, ModelData.INPUT_SHAPE)
+    context.set_binding_shape(0, ModelData.INPUT_SHAPE)
+
+    print("Set input shape completed")
+
+    np.random.seed(12345)
+    raw_data = np.random.rand(*ModelData.INPUT_SHAPE).astype(np.float32)
+
+    trt_output = trt_inference(engine, context, raw_data)
+
+    print("trt_output", trt_output)
+
+    import torch
+    tor_data = torch.from_numpy(raw_data)
+    tor_output = mnist_model.network(tor_data)
+
+    print("tor_output", tor_output)
+
+    print(f"Valid? {np.allclose(tor_output.detach().numpy(), trt_output, atol=1e-04)}")
 
 
 def main():
@@ -232,33 +253,10 @@ def main():
 
     # Build an engine, allocate buffers and create a stream.
     # For more information on buffer allocation, refer to the introductory samples.
-    _, stream = cudart.cudaStreamCreate()
     context = engine.create_execution_context()
 
-    # dynamic shape configure
-    print("Set input shape", (4, 1, 28, 28))
-
-    context.set_input_shape(ModelData.INPUT_NAME, (4, 1, 28, 28))
-    context.set_binding_shape(0, (4, 1, 28, 28))
-
-    print("Set input shape completed")
-
-    np.random.seed(12345)
-    raw_data = np.random.rand(*ModelData.INPUT_SHAPE).astype(np.float32)
-
-    trt_output = trt_inference(engine, context, raw_data)
-
-    trt_pred = np.argmax(trt_output)
-    print(trt_output, trt_pred)
-
-    import torch
-    tor_data = torch.from_numpy(raw_data)
-    tor_output = mnist_model.network(tor_data)
-    tor_pred = tor_output.data.max(1)[1]
-
-    print(tor_output, tor_pred)
-    print(f"Valid? {np.allclose(tor_output.detach().numpy(), trt_output, atol=1e-04)}")
-
+    # check_transform(engine, context, mnist_model)
+    benchmark(engine, context, mnist_model)
 
 if __name__ == "__main__":
     main()

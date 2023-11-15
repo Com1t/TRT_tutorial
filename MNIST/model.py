@@ -112,24 +112,23 @@ class MnistModel(object):
             )
         )
 
-    # Predict
-    def predict(self):
+    # benchmark
+    def benchmark(self):
         self.network.eval()
         correct = 0
-        torch_start = time.time_ns()
-
+        torch_total_time = 0
         for data, target in self.test_loader:
+            torch_start = time.time_ns()
             with torch.no_grad():
                 data, target = data.to(self.device), target.to(self.device)
             output = self.network(data)
+            torch_total_time += time.time_ns() - torch_start
             pred = output.data.max(1)[1]
             correct += pred.eq(target.data).cpu().sum()
 
-        torch_complete = time.time_ns()
-
         print(
             "\nTest set: Accuracy: {}/{} ({:.0f}%). Time: {:.4f} ms\n".format(
-                correct, len(self.test_loader.dataset), 100.0 * correct / len(self.test_loader.dataset), (torch_complete - torch_start) / 10e6
+                correct, len(self.test_loader.dataset), 100.0 * correct / len(self.test_loader.dataset), torch_total_time / 10e6
             )
         )
 
@@ -159,7 +158,7 @@ def main():
     if os.path.exists('mnist.pt'):
         print("Found pretrained weight!")
         mnist_model.load()
-        mnist_model.predict()
+        mnist_model.benchmark()
     else:
         print("No pretrained weight! Train from scratch!")
         mnist_model.learn()
