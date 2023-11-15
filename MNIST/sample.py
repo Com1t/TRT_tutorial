@@ -125,6 +125,20 @@ def build_engine(weights):
     plan = builder.build_serialized_network(network, config)
     return runtime.deserialize_cuda_engine(plan)
 
+
+def trt_export(engine):
+    with open("trt_mnist.trt", "wb") as f:
+        f.write(engine.serialize())
+
+
+def trt_load():
+    TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+    with open("trt_mnist.trt", "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
+        engine = runtime.deserialize_cuda_engine(f.read())
+
+    return engine
+
+
 def trt_inference(engine, context, raw_data):
     data = np.array(raw_data)
 
@@ -208,7 +222,13 @@ def main():
     weights = mnist_model.get_weights()
 
     # Do inference with TensorRT.
-    engine = build_engine(weights)
+    if os.path.exists('trt_mnist.trt'):
+        print("Found trt weight!")
+        engine = trt_load()
+    else:
+        print("No trt weight! Transform from scratch!")
+        engine = build_engine(weights)
+        trt_export(engine)
 
     # Build an engine, allocate buffers and create a stream.
     # For more information on buffer allocation, refer to the introductory samples.
