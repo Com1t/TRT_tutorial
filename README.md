@@ -42,6 +42,12 @@ The bias of FullyConnected semantic can be added with an
 [Pooling layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#pooling-layer)
 The Pooling layer implements pooling within a channel. Supported pooling types are `maximum`, `average` and `maximum-average blend`.
 
+## Environment
+
+1. Use `startDocker.sh` to create the environment for crafting your tensorRT network.
+
+2. Is is recommended to use Jupyter Notebook to craft tensorRT netowrk. In NGC pytorch container, `startJupyterLabOnly.sh` can be used to create a Jupyter Lab environment.
+
 ## Prerequisites
 
 1. Upgrade pip version and install the sample dependencies.
@@ -61,10 +67,9 @@ On PowerPC systems, you will need to manually install PyTorch using IBM's [Power
 1.  Run the sample to create a TensorRT inference engine and run inference:
     `python3 sample.py`
 
-2.  Verify that the sample ran successfully. If the sample runs successfully you should see a match between the test case and the prediction.
+2.  Verify that the sample ran successfully. If the sample runs successfully you should see a "Valid? True" in the end of the output.
      ```
-    Test Case: 0
-    Prediction: 0
+    Valid? True
     ```
 
 ### Sample --help options
@@ -91,6 +96,9 @@ The following resources provide a deeper understanding about getting started wit
 For terms and conditions for use, reproduction, and distribution, see the [TensorRT Software License Agreement](https://docs.nvidia.com/deeplearning/sdk/tensorrt-sla/index.html) documentation.
 
 # Changelog
+
+November 2023
+Updated the sample to be more like a practical use case, and removed the need more common.py
 
 September 2021
 Updated the sample to use explicit batch network definition.
