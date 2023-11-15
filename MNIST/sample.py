@@ -22,11 +22,6 @@ def populate_network(network, weights):
     # Configure the network layers based on the weights provided.
     input_tensor = network.add_input(name=ModelData.INPUT_NAME, dtype=ModelData.DTYPE, shape=ModelData.INPUT_SHAPE)
 
-    # # dynamic shape optimization
-    # profile = builder.create_optimization_profile();
-    # profile.set_shape("hidden_states", (batch_size, 1, hidden_size), (batch_size, 1, hidden_size), (batch_size, 45, hidden_size))
-    # config.add_optimization_profile(profile)
-
     def add_matmul_as_fc(net, input, outputs, w, b):
         # m = batch size
         # k = product of each sample size
@@ -98,7 +93,7 @@ def populate_network(network, weights):
 def build_engine(weights):
     # You can set the logger severity higher to suppress messages (or lower to display more messages).
     TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
-    
+
     # For more information on TRT basics, refer to the introductory samples.
     builder = trt.Builder(TRT_LOGGER)
 
@@ -106,17 +101,21 @@ def build_engine(weights):
     # Creating a network without this flag has been deprecated.
     network = builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
     config = builder.create_builder_config()
-    
+
     runtime = trt.Runtime(TRT_LOGGER)
 
     # max workspace size for any given layer, 1GB
     config.max_workspace_size = 1 << 30
+    # Populate the network using weights from the PyTorch model.
+    populate_network(network, weights)
+
+    # # dynamic shape optimization
+    # profile = builder.create_optimization_profile();
+    # profile.set_shape("hidden_states", (batch_size, 1, hidden_size), (batch_size, 1, hidden_size), (batch_size, 45, hidden_size))
+    # config.add_optimization_profile(profile)
 
     # # FP16
     # config.set_flag(trt.BuilderFlag.FP16)
-
-    # Populate the network using weights from the PyTorch model.
-    populate_network(network, weights)
 
     # Build and return an engine.
     plan = builder.build_serialized_network(network, config)
