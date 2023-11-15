@@ -5,6 +5,7 @@
 - [Description](#description)
 - [How does this sample work?](#how-does-this-sample-work)
     * [TensorRT API layers and ops](#tensorrt-api-layers-and-ops)
+- [Environment](#environment)
 - [Prerequisites](#prerequisites)
 - [Running the sample](#running-the-sample)
     * [Sample `--help` options](#sample-help-options)
@@ -16,6 +17,7 @@
 ## Description
 
 This sample, `network_api_pytorch_mnist`, trains a convolutional model on the [MNIST](http://yann.lecun.com/exdb/mnist/) dataset and runs inference with a TensorRT engine.
+An introductory material for tensorRT can be found [here](https://docs.google.com/presentation/d/1PkbOdOl-N8Q8PSmFI4dkJTWtGnt9daoiigfbstStpvA/edit?usp=sharing)
 
 ## How does this sample work?
 
